@@ -1,0 +1,422 @@
+---
+title: 'Vector-space approaches in R'
+author: "A. Paxton (*University of Connecticut*)"
+output: 
+  html_document:
+    keep_md: yes
+---
+
+While dictionary-based approaches allow researchers to extract meaning from text
+by identifying *a priori* certain groups of terms related to certain topics, the
+structure and reliable patterns of use within language can themselves be used to
+extract meaning. As John Firth put it, "You shall know a word by the company it
+keeps" (1957). Firth couldn't have known about advances in language sciences at
+the time, but this idea---that the meaning of words can be extracted simply by
+looking at the contexts and co-occurrence patterns in which words are used,
+without any human coding---is foundational to *vector-space approaches* in
+language analysis.
+
+This tutorial will demonstrate the use of vector-space approaches with latent
+semantic analysis (LSA; Landauer et al., 1998) and word2vec (Mikolov et al.,
+2013). As our corpus, we will use again example text from the `janeaustenr`
+library, as we did in the dictionary-based and bag-of-words approach tutorial.
+(As a reminder, this package includes 6 books from Jane Austen, with one line of
+the printed text per line in the dataframe.)
+
+***
+
+# Preliminaries
+
+First, let's get ready for our analyses. We do this by clearing our workspace
+and loading in the libraries we'll need. It's good to get in the habit of
+clearing your workspace from the start so that you don't accidentally have
+clashes with unneeded variables or dataframes that could affect your results.
+
+As with our other tutorials, we'll use a function here to check for all required
+packages and---if necessary---install them before loading them. Implementing
+this (or a similar) function is a helpful first step, especially if you plan on
+sharing your code with other people.
+
+```{r clear-workspace}
+
+# clear the workspace (useful if we're not knitting)
+rm(list=ls())
+
+```
+
+```{r function-check-for-packages, include=FALSE}
+
+# make sure we can load packages 
+# (thanks to https://gist.github.com/smithdanielle/9913897)
+load_or_install_packages <- function(pkg){
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+  if (length(new.pkg)) {
+    install.packages(new.pkg, 
+                     dependencies = TRUE,
+                     repos="http://cloud.r-project.org/")}
+  sapply(pkg, require, character.only = TRUE) 
+}
+
+```
+
+
+```{r load-packages, message=FALSE, results="hide"}
+
+# specify which packages we'll need
+required_packages = c("tidyverse",
+                      "stringr",
+                      "tidytext",
+                      "janeaustenr",
+                      "lsa",
+                      "LSAfun",
+                      "tm",
+                      "word2vec",
+                      "text2vec")
+
+# install them (if necessary) and load them
+load_or_install_packages(required_packages)
+
+```
+
+***
+
+# Data processing
+
+***
+
+## Inspecting the data
+
+Our data are already fairly nicely processed for us, thanks to the work done in
+creating the `janeaustenr` package. However, let's begin---as we always
+should!---by having a look at our data.
+
+We'll start by saving the output of the built-in function `austen_books()` to
+something new and then inspecting the output. Note how we're using informative
+variable names. Do a favor for others (and Future You!) and *always* use
+informative variable names, along with plenty of comments. I find that it's
+sometimes harder to retrace my steps through poorly commented code than it is to
+just rewrite the whole thing from scratch.
+
+```{r examine-data}
+
+# let's see what we've got
+book_df = austen_books()
+head(book_df)
+
+```
+
+***
+
+## Labeling units of the text
+
+For vector-space approaches, we need to select or create a unit of analysis,
+typically known as the *document*. We can do this at a full level of a document
+(like an entire book or an entire social media post), or we can subset a large
+document into smaller portions (like a chapter or a page). In the case of the
+current dataset, as we've mentioned before, we choose to look at a chapter or
+page level. We'll use chapters here.
+
+```{r render-chapter-numbers}
+
+# create a new variable called `chapter`
+book_df = austen_books() %>%
+  
+  # give each book their own starting point
+  group_by(book) %>%
+  
+  # convert chapter numbers to a numeric variable
+  mutate(chapter = cumsum(str_detect(text, regex("^chapter [\\divxlc]",
+                                                 ignore_case = TRUE)))) %>%
+  ungroup() %>%
+  
+  # convert line-by-line to chapter-by-chapter rows
+  group_by(book, chapter) %>%
+  summarize(chapter_text = paste(text, collapse = " ")) %>% 
+  ungroup()
+
+# show us what we've got
+head(book_df)
+
+```
+
+***
+
+# Latent semantic analysis
+
+***
+
+## Prepare text
+
+For LSA, each distinct orthographic representation will be treated as an
+entirely separate entity. For example, `THIS`, `this`, `This` would all be
+treated as unique items. Typically, this is handled by first converting all text
+to lowercase. There are multiple ways we can do this, but `tidytext`'s
+`unnest_lines()` functions takes care of many of these things at once.
+
+```{r unnest-lines}
+
+# clean up each row
+tidy_book_df = book_df %>% 
+  tidytext::unnest_lines(chapter_text, chapter_text)
+
+# take a peek at what we have
+head(tidy_book_df)
+
+```
+
+There are, of course, other things that you might want to consider. For example,
+do you care about punctuation? (That is, do you want `this?` and `this` and
+`this.` to be considered as separate items? Typically, you don't, and you would
+strip punctuation from them.) And what about stopwords? (That is, do you want
+those very high-frequency words in your corpus?) And on the other hand, what
+about very *low*-frequency words? (A common way of dealing with this is to
+remove any words that appear in fewer than 5 unique documents in the entire
+corpus.) 
+
+There are many ways to do these, but we'll use built-in functions from `tm` to
+quickly strip out stopwords and punctuation in the next section.
+
+***
+
+## Convert our dataset to a corpus
+
+We've done a lot of data processing, but we'll need to convert our text to
+a `Corpus` object so that the function can use it. From there, we can easily
+remove stopwords and punctuation. We'll also remove the word `chapter` from
+consideration, since it appears at the beginning of each row. (There are
+better ways to do it, but we'll go ahead and do it this way for simplicity.
+For those of you interested, I would recommend doing a regular expression
+that looks for the word `Chapter` at the beginning of each document.)
+
+```{r create-corpus-object}
+
+# convert our chapter-by-chapter dataframe to a Corpus object
+austen_corpus = tm::Corpus(VectorSource(tidy_book_df$chapter_text))
+
+# remove stopwords
+austen_corpus = tm_map(austen_corpus,
+                           function(x){
+                             removeWords(x, c(stopwords("english"),
+                                              "chapter"))})
+
+# remove punctuation
+austen_corpus = tm_map(austen_corpus, removePunctuation)
+
+```
+
+***
+
+## Creating term-document matrix
+
+Next, we need to create our term-document matrix. The `tm` package
+can do this pretty easily and quickly right from a dataframe!
+
+We'll also weight the space to account for the sparsity of the matrix: Some
+words are very frequent, and others are very rare. Weighting the matrix helps
+account for those differences.
+
+```{r create-tdm-and-weight}
+
+# convert the Corpus object into a term-document matrix
+austen_tdm = as.matrix(tm::TermDocumentMatrix(austen_corpus))
+
+# weight the space
+austen_tdm = lw_logtf(austen_tdm) * gw_idf(austen_tdm)
+
+```
+
+*** 
+
+## Running latent semantic analysis
+
+And here we go!
+
+```{r run-lsa}
+
+# one line of code!
+austen_lsa = lsa::lsa(austen_tdm)
+
+# okay, well---one more to convert it
+austen_lsa = as.textmatrix(austen_lsa)
+
+# let's look at it
+austen_lsa[1:5,1:20]
+
+```
+
+And there you have it! Now we have our vector-space representation of the
+semantics of Jane Austen (well, six of her books, anyway). You can see a snippet
+of how the program "understands" each word in the printed text above: It's a
+series of weights (only on the first 20 dimensions) of the first 5 words of the
+book.
+
+Now, let's do some exploring!
+
+***
+
+## Visualize the similarities
+
+You might be interested in seeing what words are seen as most similar in the
+multidimensional space. You can visualize this by using the `plot_neighbors()`
+function.
+
+```{r plot-neighbor-chunk}
+
+# plot some of the nearest neighbors in multidimensional space, projected down
+plot_neighbors("house", # choose a single word
+               n = 10, # say how many neighbors you want to see
+               tvectors = austen_lsa, # give the name of the matrix space
+               method = "MDS", # say how you want the dimensions reduced
+               dims = 2) # specify whether you want a 2D or 3D projection
+
+```
+
+***
+
+## Quantifying similarities
+
+It's good to get to know your data by exploring similarities, but if you're
+doing this for a project, you probably have a specific list of words that you
+might want to understand. Let's start by specifying some of those words here.
+
+Perhaps we're interested in exploring food in Jane Austen's works.
+
+```{r specify-target-list}
+
+# create a list of words
+distance_list = c("breakfast", "dinner", "tea", "coffee", "cake", "meat", "sandwich")
+
+```
+
+```{r visualize-target-list}
+
+# let's try visualizing our chosen words with a variant of the `plot_neighbors()` function
+plot_wordlist(distance_list, # put your list in here
+               tvectors = austen_lsa,
+               method = "MDS",
+               dims = 2)
+
+```
+
+While visualizing can be quite helpful, we probably want some numbers to try to
+analyze quantitatively. We can do that by getting the cosine similarity between
+words: Higher cosine similarities mean that the words are closer together in
+multidimensional space, while lower cosine similarities mean that they are
+further away in multidimensional space.
+
+```{r get-cosine-similarity}
+
+# get a matrix of cosine distances!
+multicos(distance_list, tvectors = austen_lsa)
+
+```
+
+From here, we can use the cosine values in statistical analyses---for example,
+if you wanted to see whether you could recover the kind of food served at
+different meals based on their cosine similarities.
+
+***
+
+# word2vec
+
+***
+
+## Prepare vectors
+
+For simplicity, we will not discuss how to train a `word2vec` model, but it can
+be done in the `word2vec` library. Instead, we will use the pretrained vectors
+created from the Google News corpus, which you should have downloaded as part
+of the preparation for this section.
+
+```{r}
+
+# read in the pretrained vectors
+model_path = read.word2vec("/Users/alex/Downloads/GoogleNews-vectors-negative300.bin")
+google_news_embeddings = as.matrix(model_path)
+
+```
+
+***
+
+## Explore word-to-word similarity
+
+Like with LSA, we can compare specific words with one another. Let's see how
+similar the food words from the LSA exercise are in the Google News corpus!
+
+```{r}
+
+# specify which words we want to explore
+food_words = google_news_embeddings[c("breakfast", "dinner", 
+                                      "tea", "coffee", 
+                                      "cake", "meat", "sandwich"), ]
+
+```
+
+```{r}
+
+# let's create another similarity matrix!
+word2vec_similarity(food_words, food_words,
+                    type='cosine')
+
+```
+
+***
+
+## Quantifying document-level similarities
+
+Next, we might want to compare similarities of phrases or documents, rather than
+specific words. To do that, we can use `doc2vec()`. Again, we could use whatever
+segment we wanted. Here, we'll use the 275 chapters from the 6 Jane Austen
+books, like we did with our LSA analysis.
+
+First, we'll need to do a bit of formatting so that we give `doc2vec()` what it
+expects to see.
+
+```{r}
+
+# convert book dataframe to the appropriate format
+reformatted_tidy_books = tidy_book_df %>%
+  
+  # remove unneeded variables
+  dplyr::select(-chapter, -book) %>%
+  
+  # give a document id column
+  rownames_to_column(var = "doc_id") %>%
+  
+  # rename text variable
+  rename(c("text" = "chapter_text"))
+
+# let's take a peek
+head(reformatted_tidy_books)
+
+```
+
+Next, we'll get the embeddings for each chapter using the vector space specified
+at our model path.
+
+```{r}
+
+# get embeddings for each chapter
+chapter_embeddings = doc2vec(model_path, # give the path to the model here
+                             reformatted_tidy_books, # say the dataframe we want here
+                             type = "embedding")
+
+```
+
+Alrighty, now we can create a chapter-to-chapter matrix of cosine similarities!
+
+```{r}
+ 
+# calculate chapter-to-chapter similarities
+chapter_similarities = word2vec_similarity(chapter_embeddings,chapter_embeddings,
+                                           type='cosine')
+
+```
+
+We could, then, use these similarities to see which chapters are most similar in
+their vector spaces. For example, are the chapters within a book all more
+similar than across books? Or could you see a dramatic arc in the narrative,
+perhaps with the beginning and ending of each book being more similar than the
+ending of the book? Or if you were a Jane Austen scholar, you might have other
+guesses about what books and/or chapters might be most similar---and you could
+test those guesses with this!
