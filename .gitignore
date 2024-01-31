@@ -1,0 +1,9 @@
+# R files
+*.Rproj.user/
+*.Rhistory
+.RData
+.Ruserdata
+
+# R Markdown files
+*.html
+*.pdf
