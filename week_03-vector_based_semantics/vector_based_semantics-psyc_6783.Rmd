@@ -362,9 +362,13 @@ similar the food words from the LSA exercise are in the Google News corpus!
 ```{r}
 
 # specify which words we want to explore
-food_words = google_news_embeddings[c("breakfast", "dinner", 
-                                      "tea", "coffee", 
-                                      "cake", "meat", "sandwich"), ]
+food_words = google_news_embeddings[c("breakfast", 
+                                      "dinner", 
+                                      "tea", 
+                                      "coffee", 
+                                      "cake", 
+                                      "meat", 
+                                      "sandwich"), ]
 
 ```
 
