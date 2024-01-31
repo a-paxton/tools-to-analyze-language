@@ -315,6 +315,22 @@ From here, we can use the cosine values in statistical analyses---for example,
 if you wanted to see whether you could recover the kind of food served at
 different meals based on their cosine similarities.
 
+*** 
+
+## Jump in
+
+Now that you have the LSA space and know a bit about how to visualize and
+quantify similarities, try it out! Identify some words you think should
+be related. Visualize the spaces around them, and see how far they are from
+one another.
+
+```{r}
+
+# explore here!
+
+```
+
+
 ***
 
 # word2vec
