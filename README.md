@@ -1,6 +1,7 @@
 # Tools to Analyze Language
 
-This repository includes code and exercises associated with "Tools to Analyze Language" (PSYC 6783), co-taught with Nairán Ramírez-Esparza at UConn in Spring 2022.
+This repository includes code and exercises associated with "Tools to Analyze Language" (PSYC 6783), 
+co-taught with Nairán Ramírez-Esparza at UConn in Spring 2022 and Spring 2024.
 
 ## Prerequisites
 
