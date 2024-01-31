@@ -389,6 +389,10 @@ word2vec_similarity(food_words, food_words,
 
 ```
 
+**Consider**: How do these compare with the ones from the LSA output? What about
+that comparison surprises you (or not)? Be sure to consider both the models 
+*and* the data.
+
 ***
 
 ## Quantifying document-level similarities
