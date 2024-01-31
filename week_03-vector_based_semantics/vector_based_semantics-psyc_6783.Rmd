@@ -456,3 +456,31 @@ perhaps with the beginning and ending of each book being more similar than the
 ending of the book? Or if you were a Jane Austen scholar, you might have other
 guesses about what books and/or chapters might be most similar---and you could
 test those guesses with this!
+
+***
+
+## Jump in 
+
+Now that you know a bit about how to apply word2vec, try doing some new explorations!
+For example, try doing the same words that you tried for LSA, and see how the results
+compare. Or intentionally try to identify a set of words that might be similar in the
+LSA space of the Jane Austen novels and the Google News Corpus. Or a set of words
+that might be similar in one of those spaces but different in another. The possibilities
+are endless!
+
+```{r}
+
+# try that here!
+
+```
+
+And here, if you have some of your own data, you could try to use the word2vec space
+to try to see how similar different facets of your data are (at least, when using
+word embeddings created from the Google News corpus).
+
+```{r}
+
+# try word2vec with your own dataset here!
+
+```
+
