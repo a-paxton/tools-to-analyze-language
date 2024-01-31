@@ -444,6 +444,9 @@ Alrighty, now we can create a chapter-to-chapter matrix of cosine similarities!
 chapter_similarities = word2vec_similarity(chapter_embeddings,chapter_embeddings,
                                            type='cosine')
 
+# and show them
+chapter_similarities[1:10, 1:10]
+
 ```
 
 We could, then, use these similarities to see which chapters are most similar in
