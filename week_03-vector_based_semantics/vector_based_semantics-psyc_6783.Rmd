@@ -330,6 +330,15 @@ one another.
 
 ```
 
+And if you have a datset of your own, try using this chunk below to
+load in your dataset and try doing LSA on it.
+
+```{r}
+
+# try LSA with your own dataset here!
+
+```
+
 
 ***
 
