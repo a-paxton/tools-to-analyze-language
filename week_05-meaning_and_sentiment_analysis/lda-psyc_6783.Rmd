@@ -1,0 +1,72 @@
+---
+title: 'Introduction to latent Dirichlet allocation (LDA) in text analysis'
+author: "A. Paxton (*University of Connecticut*)"
+output:
+  html_document:
+    keep_md: yes
+    number_sections: yes
+---
+
+Latent Dirichlet allocation (LDA) is a form of *topic modeling*, a class
+of unsupervised machine learning methods that can be used to identify a
+researcher-defined number of clusters of words within text data. LDA assumes that
+each *document* (or meaningful "chunk" of text) made up of a mix of one or more *topics*;
+each topic is made up of a mix of different words. The process looks at the
+probabilistic co-occurrence of these terms in order to identify the topics, and 
+researchers can provide more human-interpretable labels for each topic by looking at
+the words that comprise them. Researchers can then explore how these topics 
+occur across different documents.
+
+To perform LDA, you'll need to have a series of texts from a number of different
+documents. (As with other text analysis, what you consider a "document" will be
+flexible: It could be abstracts, chapters, books, blog posts... whatever you
+count as a meaningful "chunk" of text to be analyzed.)
+
+In this exercise, we'll walk through the process of performing LDA in R.
+
+***
+
+# Preliminaries
+
+First, we'll need to prepare for our exercises. We'll do this by loading the
+packages we need, including---if needed---installing those packages. For the
+sake of the exercise, we'll load the packages silently, meaning that we won't
+clutter our R markdown output with a bunch of warnings and output messages
+from the loading and installation process.
+
+```{r clear-workspace}
+
+# clear the workspace (useful if we're not knitting)
+rm(list=ls())
+
+```
+
+```{r function-check-for-packages, include=FALSE}
+
+# make sure we can load packages 
+# (thanks to https://gist.github.com/smithdanielle/9913897)
+load_or_install_packages <- function(pkg){
+  new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+  if (length(new.pkg)) {
+    install.packages(new.pkg, 
+                     dependencies = TRUE,
+                     repos="http://cloud.r-project.org/")}
+  sapply(pkg, require, character.only = TRUE)
+}
+
+```
+
+```{r load-packages, message=FALSE, results="hide"}
+
+# specify which packages we'll need
+required_packages = c("tidyverse",
+                      "topicmodels",
+                      "tidytext")
+
+# install them (if necessary) and load them
+load_or_install_packages(required_packages)
+
+```
+
+***
+
