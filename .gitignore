@@ -7,3 +7,6 @@
 # R Markdown files
 *.html
 *.pdf
+
+# invisibles
+*.DS_Store
